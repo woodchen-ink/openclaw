@@ -81,4 +81,23 @@ describe("buildApiErrorObservationFields", () => {
     expect(first.rawErrorFingerprint).toBe(second.rawErrorFingerprint);
     expect(first.rawErrorHash).not.toBe(second.rawErrorHash);
   });
+
+  it("truncates oversized raw and provider previews", () => {
+    const longMessage = "X".repeat(260);
+    const observed = buildApiErrorObservationFields(
+      `{"type":"error","error":{"type":"server_error","message":"${longMessage}"},"request_id":"req_long"}`,
+    );
+
+    expect(observed.rawErrorPreview).toBeDefined();
+    expect(observed.providerErrorMessagePreview).toBeDefined();
+    expect(observed.rawErrorPreview?.length).toBeLessThanOrEqual(401);
+    expect(observed.providerErrorMessagePreview?.length).toBeLessThanOrEqual(201);
+    expect(observed.providerErrorMessagePreview?.endsWith("…")).toBe(true);
+  });
+
+  it("returns empty observation fields for empty input", () => {
+    expect(buildApiErrorObservationFields(undefined)).toEqual({});
+    expect(buildApiErrorObservationFields("")).toEqual({});
+    expect(buildApiErrorObservationFields("   ")).toEqual({});
+  });
 });

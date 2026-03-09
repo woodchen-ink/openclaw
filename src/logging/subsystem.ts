@@ -258,7 +258,12 @@ function shouldSuppressProbeConsoleLine(params: {
   if (isVerbose()) {
     return false;
   }
-  if (params.subsystem !== "agent/embedded" && !params.subsystem.startsWith("agent/embedded/")) {
+  const isProbeSuppressedSubsystem =
+    params.subsystem === "agent/embedded" ||
+    params.subsystem.startsWith("agent/embedded/") ||
+    params.subsystem === "model-fallback" ||
+    params.subsystem.startsWith("model-fallback/");
+  if (!isProbeSuppressedSubsystem) {
     return false;
   }
   const runLikeId =

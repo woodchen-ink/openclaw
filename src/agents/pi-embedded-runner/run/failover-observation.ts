@@ -22,36 +22,49 @@ export type FailoverDecisionObservation = {
 
 export type FailoverDecisionBase = Omit<FailoverDecisionObservation, "decision" | "status">;
 
+export function normalizeFailoverDecisionObservationBase(
+  base: FailoverDecisionBase,
+): FailoverDecisionBase {
+  return {
+    ...base,
+    failoverReason: base.failoverReason ?? (base.timedOut ? "timeout" : null),
+    profileFailureReason: base.profileFailureReason ?? (base.timedOut ? "timeout" : null),
+  };
+}
+
 export function createFailoverDecisionLogger(
   base: FailoverDecisionBase,
 ): (
   decision: FailoverDecisionObservation["decision"],
   extra?: Pick<FailoverDecisionObservation, "status">,
 ) => void {
-  const safeProfileId = base.profileId ? redactIdentifier(base.profileId, { len: 12 }) : undefined;
+  const normalizedBase = normalizeFailoverDecisionObservationBase(base);
+  const safeProfileId = normalizedBase.profileId
+    ? redactIdentifier(normalizedBase.profileId, { len: 12 })
+    : undefined;
   const profileText = safeProfileId ?? "-";
-  const reasonText = base.failoverReason ?? "none";
+  const reasonText = normalizedBase.failoverReason ?? "none";
   return (decision, extra) => {
-    const observedError = buildApiErrorObservationFields(base.rawError);
+    const observedError = buildApiErrorObservationFields(normalizedBase.rawError);
     log.warn("embedded run failover decision", {
       event: "embedded_run_failover_decision",
-      tags: ["error_handling", "failover", base.stage, decision],
-      runId: base.runId,
-      stage: base.stage,
+      tags: ["error_handling", "failover", normalizedBase.stage, decision],
+      runId: normalizedBase.runId,
+      stage: normalizedBase.stage,
       decision,
-      failoverReason: base.failoverReason,
-      profileFailureReason: base.profileFailureReason,
-      provider: base.provider,
-      model: base.model,
+      failoverReason: normalizedBase.failoverReason,
+      profileFailureReason: normalizedBase.profileFailureReason,
+      provider: normalizedBase.provider,
+      model: normalizedBase.model,
       profileId: safeProfileId,
-      fallbackConfigured: base.fallbackConfigured,
-      timedOut: base.timedOut,
-      aborted: base.aborted,
+      fallbackConfigured: normalizedBase.fallbackConfigured,
+      timedOut: normalizedBase.timedOut,
+      aborted: normalizedBase.aborted,
       status: extra?.status,
       ...observedError,
       consoleMessage:
-        `embedded run failover decision: runId=${base.runId ?? "-"} stage=${base.stage} decision=${decision} ` +
-        `reason=${reasonText} provider=${base.provider}/${base.model} profile=${profileText}`,
+        `embedded run failover decision: runId=${normalizedBase.runId ?? "-"} stage=${normalizedBase.stage} decision=${decision} ` +
+        `reason=${reasonText} provider=${normalizedBase.provider}/${normalizedBase.model} profile=${profileText}`,
     });
   };
 }
