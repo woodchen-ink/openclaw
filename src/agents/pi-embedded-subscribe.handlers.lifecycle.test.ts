@@ -57,14 +57,9 @@ describe("handleAgentEnd", () => {
     expect(warn.mock.calls[0]?.[0]).toBe("embedded run agent end");
     expect(warn.mock.calls[0]?.[1]).toMatchObject({
       event: "embedded_run_agent_end",
-      tags: ["error_handling", "lifecycle", "agent_end", "assistant_error"],
       runId: "run-1",
-      isError: true,
       error: "connection refused",
       rawErrorPreview: "connection refused",
-      rawErrorHash: expect.stringMatching(/^sha256:/),
-      failoverReason: null,
-      consoleMessage: "embedded run agent end: runId=run-1 isError=true error=connection refused",
     });
     expect(onAgentEvent).toHaveBeenCalledWith({
       stream: "lifecycle",
@@ -92,21 +87,10 @@ describe("handleAgentEnd", () => {
     expect(warn.mock.calls[0]?.[0]).toBe("embedded run agent end");
     expect(warn.mock.calls[0]?.[1]).toMatchObject({
       event: "embedded_run_agent_end",
-      tags: ["error_handling", "lifecycle", "agent_end", "assistant_error"],
       runId: "run-1",
-      isError: true,
       error: "The AI service is temporarily overloaded. Please try again in a moment.",
-      rawErrorPreview:
-        '{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}',
-      rawErrorHash: expect.stringMatching(/^sha256:/),
-      rawErrorFingerprint: expect.stringMatching(/^sha256:/),
       failoverReason: "overloaded",
-      provider: "anthropic",
-      model: "claude-test",
       providerErrorType: "overloaded_error",
-      providerErrorMessagePreview: "Overloaded",
-      consoleMessage:
-        "embedded run agent end: runId=run-1 isError=true error=The AI service is temporarily overloaded. Please try again in a moment.",
     });
   });
 

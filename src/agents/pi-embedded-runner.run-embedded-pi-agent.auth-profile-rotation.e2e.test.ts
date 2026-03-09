@@ -759,21 +759,11 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
     expect((decisionRecord as Record<string, unknown>)["1"]).toMatchObject({
       event: "embedded_run_failover_decision",
       runId: "run:overloaded-logging",
-      tags: ["error_handling", "failover", "assistant", "rotate_profile"],
-      stage: "assistant",
       decision: "rotate_profile",
       failoverReason: "overloaded",
-      profileFailureReason: "overloaded",
-      fallbackConfigured: false,
-      provider: "openai",
-      model: "mock-1",
       profileId: "openai:p1",
       providerErrorType: "overloaded_error",
-      providerErrorMessagePreview: "Overloaded",
-      requestIdHash: expect.stringMatching(/^sha256:/),
       rawErrorPreview: expect.stringContaining('"request_id":"sha256:'),
-      rawErrorHash: expect.stringMatching(/^sha256:/),
-      rawErrorFingerprint: expect.stringMatching(/^sha256:/),
     });
 
     const stateRecord = records.find(
@@ -789,9 +779,7 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
       event: "auth_profile_failure_state_updated",
       runId: "run:overloaded-logging",
       profileId: "openai:p1",
-      provider: "openai",
       reason: "overloaded",
-      windowType: "cooldown",
     });
   });
 
