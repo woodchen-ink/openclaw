@@ -1,22 +1,31 @@
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { sanitizeForLog } from "../terminal/ansi.js";
+import type { FallbackAttempt, ModelCandidate } from "./model-fallback.types.js";
 import { buildTextObservationFields } from "./pi-embedded-error-observation.js";
 import type { FailoverReason } from "./pi-embedded-helpers.js";
 
 const decisionLog = createSubsystemLogger("model-fallback").child("decision");
 
-type ModelCandidate = {
-  provider: string;
-  model: string;
-};
-
-type FallbackAttempt = {
-  provider: string;
-  model: string;
-  error: string;
-  reason?: FailoverReason;
-  status?: number;
-  code?: string;
-};
+function buildErrorObservationFields(error?: string): {
+  errorPreview?: string;
+  errorHash?: string;
+  errorFingerprint?: string;
+  httpCode?: string;
+  providerErrorType?: string;
+  providerErrorMessagePreview?: string;
+  requestIdHash?: string;
+} {
+  const observed = buildTextObservationFields(error);
+  return {
+    errorPreview: observed.textPreview,
+    errorHash: observed.textHash,
+    errorFingerprint: observed.textFingerprint,
+    httpCode: observed.httpCode,
+    providerErrorType: observed.providerErrorType,
+    providerErrorMessagePreview: observed.providerErrorMessagePreview,
+    requestIdHash: observed.requestIdHash,
+  };
+}
 
 export function logModelFallbackDecision(params: {
   decision:
@@ -43,11 +52,11 @@ export function logModelFallbackDecision(params: {
   previousAttempts?: FallbackAttempt[];
 }): void {
   const nextText = params.nextCandidate
-    ? `${params.nextCandidate.provider}/${params.nextCandidate.model}`
+    ? `${sanitizeForLog(params.nextCandidate.provider)}/${sanitizeForLog(params.nextCandidate.model)}`
     : "none";
   const reasonText = params.reason ?? "unknown";
-  const observedError = buildTextObservationFields(params.error);
-  decisionLog.info("model fallback decision", {
+  const observedError = buildErrorObservationFields(params.error);
+  decisionLog.warn("model fallback decision", {
     event: "model_fallback_decision",
     tags: ["error_handling", "model_fallback", params.decision],
     runId: params.runId,
@@ -61,13 +70,7 @@ export function logModelFallbackDecision(params: {
     reason: params.reason,
     status: params.status,
     code: params.code,
-    errorPreview: observedError.textPreview,
-    errorHash: observedError.textHash,
-    errorFingerprint: observedError.textFingerprint,
-    httpCode: observedError.httpCode,
-    providerErrorType: observedError.providerErrorType,
-    providerErrorMessagePreview: observedError.providerErrorMessagePreview,
-    requestIdHash: observedError.requestIdHash,
+    ...observedError,
     nextCandidateProvider: params.nextCandidate?.provider,
     nextCandidateModel: params.nextCandidate?.model,
     isPrimary: params.isPrimary,
@@ -81,10 +84,10 @@ export function logModelFallbackDecision(params: {
       reason: attempt.reason,
       status: attempt.status,
       code: attempt.code,
-      ...buildTextObservationFields(attempt.error),
+      ...buildErrorObservationFields(attempt.error),
     })),
     consoleMessage:
-      `model fallback decision: decision=${params.decision} requested=${params.requestedProvider}/${params.requestedModel} ` +
-      `candidate=${params.candidate.provider}/${params.candidate.model} reason=${reasonText} next=${nextText}`,
+      `model fallback decision: decision=${params.decision} requested=${sanitizeForLog(params.requestedProvider)}/${sanitizeForLog(params.requestedModel)} ` +
+      `candidate=${sanitizeForLog(params.candidate.provider)}/${sanitizeForLog(params.candidate.model)} reason=${reasonText} next=${nextText}`,
   });
 }

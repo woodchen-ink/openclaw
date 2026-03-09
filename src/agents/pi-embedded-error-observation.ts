@@ -10,8 +10,23 @@ const REQUEST_ID_RE = /\brequest[_ ]?id\b\s*[:=]\s*["'()]*([A-Za-z0-9._:-]+)/i;
 const OBSERVATION_EXTRA_REDACT_PATTERNS = [
   String.raw`\b(?:x-)?api[-_]?key\b\s*[:=]\s*(["']?)([^\s"'\\;]+)\1`,
   String.raw`"(?:api[-_]?key|api_key)"\s*:\s*"([^"]+)"`,
-  String.raw`\bCookie\b\s*[:=]\s*([^\r\n]+)`,
+  String.raw`(?:\bCookie\b\s*[:=]\s*[^;=\s]+=|;\s*[^;=\s]+=)([^;\s\r\n]+)`,
 ];
+let observationRedactPatterns: string[] | undefined;
+
+function getObservationRedactPatterns(): string[] {
+  if (!observationRedactPatterns) {
+    // Observation logs must stay redacted even when operators disable general-purpose
+    // log redaction, otherwise raw provider payloads leak back into always-on logs.
+    const configuredPatterns = readLoggingConfig()?.redactPatterns ?? [];
+    observationRedactPatterns = [
+      ...getDefaultRedactPatterns(),
+      ...configuredPatterns,
+      ...OBSERVATION_EXTRA_REDACT_PATTERNS,
+    ];
+  }
+  return observationRedactPatterns;
+}
 
 function truncateForObservation(text: string | undefined, maxChars: number): string | undefined {
   const trimmed = text?.trim();
@@ -35,16 +50,9 @@ function redactObservationText(text: string | undefined): string | undefined {
   if (!text) {
     return text;
   }
-  // Observation logs must stay redacted even when operators disable general-purpose
-  // log redaction, otherwise raw provider payloads leak back into always-on logs.
-  const configuredPatterns = readLoggingConfig()?.redactPatterns ?? [];
   return redactSensitiveText(text, {
     mode: "tools",
-    patterns: [
-      ...getDefaultRedactPatterns(),
-      ...configuredPatterns,
-      ...OBSERVATION_EXTRA_REDACT_PATTERNS,
-    ],
+    patterns: getObservationRedactPatterns(),
   });
 }
 

@@ -75,23 +75,61 @@ describe("createSubsystemLogger().isEnabled", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("suppresses probe info logs for model-fallback child subsystems based on structured run metadata", () => {
-    setLoggerOverride({ level: "silent", consoleLevel: "info" });
-    const logFn = vi.fn();
+  it("does not suppress probe errors for embedded subsystems", () => {
+    setLoggerOverride({ level: "silent", consoleLevel: "error" });
+    const error = vi.fn();
     loggingState.rawConsole = {
-      log: logFn,
+      log: vi.fn(),
       info: vi.fn(),
       warn: vi.fn(),
+      error,
+    };
+    const log = createSubsystemLogger("agent/embedded").child("failover");
+
+    log.error("embedded run failover decision", {
+      runId: "probe-test-run",
+      consoleMessage: "embedded run failover decision",
+    });
+
+    expect(error).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppresses probe warnings for model-fallback child subsystems based on structured run metadata", () => {
+    setLoggerOverride({ level: "silent", consoleLevel: "warn" });
+    const warn = vi.fn();
+    loggingState.rawConsole = {
+      log: vi.fn(),
+      info: vi.fn(),
+      warn,
       error: vi.fn(),
     };
     const log = createSubsystemLogger("model-fallback").child("decision");
 
-    log.info("model fallback decision", {
+    log.warn("model fallback decision", {
       runId: "probe-test-run",
       consoleMessage: "model fallback decision",
     });
 
-    expect(logFn).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("does not suppress probe errors for model-fallback child subsystems", () => {
+    setLoggerOverride({ level: "silent", consoleLevel: "error" });
+    const error = vi.fn();
+    loggingState.rawConsole = {
+      log: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error,
+    };
+    const log = createSubsystemLogger("model-fallback").child("decision");
+
+    log.error("model fallback decision", {
+      runId: "probe-test-run",
+      consoleMessage: "model fallback decision",
+    });
+
+    expect(error).toHaveBeenCalledTimes(1);
   });
 
   it("still emits non-probe warnings for embedded subsystems", () => {
@@ -113,22 +151,22 @@ describe("createSubsystemLogger().isEnabled", () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
-  it("still emits non-probe model-fallback child logs", () => {
-    setLoggerOverride({ level: "silent", consoleLevel: "info" });
-    const logFn = vi.fn();
+  it("still emits non-probe model-fallback child warnings", () => {
+    setLoggerOverride({ level: "silent", consoleLevel: "warn" });
+    const warn = vi.fn();
     loggingState.rawConsole = {
-      log: logFn,
+      log: vi.fn(),
       info: vi.fn(),
-      warn: vi.fn(),
+      warn,
       error: vi.fn(),
     };
     const log = createSubsystemLogger("model-fallback").child("decision");
 
-    log.info("model fallback decision", {
+    log.warn("model fallback decision", {
       runId: "run-123",
       consoleMessage: "model fallback decision",
     });
 
-    expect(logFn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 });

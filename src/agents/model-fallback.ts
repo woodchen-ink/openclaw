@@ -20,6 +20,7 @@ import {
   isTimeoutError,
 } from "./failover-error.js";
 import { logModelFallbackDecision } from "./model-fallback-observation.js";
+import type { FallbackAttempt, ModelCandidate } from "./model-fallback.types.js";
 import {
   buildConfiguredAllowlistKeys,
   buildModelAliasIndex,
@@ -33,11 +34,6 @@ import { isLikelyContextOverflowError } from "./pi-embedded-helpers.js";
 
 const log = createSubsystemLogger("model-fallback");
 
-type ModelCandidate = {
-  provider: string;
-  model: string;
-};
-
 export type ModelFallbackRunOptions = {
   allowTransientCooldownProbe?: boolean;
 };
@@ -47,15 +43,6 @@ type ModelFallbackRunFn<T> = (
   model: string,
   options?: ModelFallbackRunOptions,
 ) => Promise<T>;
-
-type FallbackAttempt = {
-  provider: string;
-  model: string;
-  error: string;
-  reason?: FailoverReason;
-  status?: number;
-  code?: string;
-};
 
 /**
  * Fallback abort check. Only treats explicit AbortError names as user aborts.

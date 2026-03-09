@@ -38,7 +38,17 @@ describe("buildApiErrorObservationFields", () => {
 
     expect(observed.rawErrorPreview).not.toContain("abcdefghijklmnopqrstuvwxyz123456");
     expect(observed.rawErrorPreview).toContain("x-api-key: ***");
-    expect(observed.rawErrorPreview).toContain("Cookie: sessio");
+    expect(observed.rawErrorPreview).toContain("Cookie: session=");
+  });
+
+  it("does not let cookie redaction consume unrelated fields on the same line", () => {
+    const observed = buildApiErrorObservationFields(
+      "Cookie: session=abcdefghijklmnopqrstuvwxyz123456 status=503 request_id=req_cookie",
+    );
+
+    expect(observed.rawErrorPreview).toContain("Cookie: session=");
+    expect(observed.rawErrorPreview).toContain("status=503");
+    expect(observed.rawErrorPreview).toContain("request_id=sha256:");
   });
 
   it("builds sanitized generic text observation fields", () => {

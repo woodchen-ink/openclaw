@@ -251,11 +251,15 @@ function writeConsoleLine(level: LogLevel, line: string) {
 }
 
 function shouldSuppressProbeConsoleLine(params: {
+  level: LogLevel;
   subsystem: string;
   message: string;
   meta?: Record<string, unknown>;
 }): boolean {
   if (isVerbose()) {
+    return false;
+  }
+  if (params.level === "error" || params.level === "fatal") {
     return false;
   }
   const isProbeSuppressedSubsystem =
@@ -336,7 +340,14 @@ export function createSubsystemLogger(subsystem: string): SubsystemLogger {
       return;
     }
     const consoleMessage = consoleMessageOverride ?? message;
-    if (shouldSuppressProbeConsoleLine({ subsystem, message: consoleMessage, meta: fileMeta })) {
+    if (
+      shouldSuppressProbeConsoleLine({
+        level,
+        subsystem,
+        message: consoleMessage,
+        meta: fileMeta,
+      })
+    ) {
       return;
     }
     const line = formatConsoleLine({
@@ -379,7 +390,7 @@ export function createSubsystemLogger(subsystem: string): SubsystemLogger {
         logToFile(getFileLogger(), "info", message, { raw: true });
       }
       if (isConsoleEnabled("info")) {
-        if (shouldSuppressProbeConsoleLine({ subsystem, message })) {
+        if (shouldSuppressProbeConsoleLine({ level: "info", subsystem, message })) {
           return;
         }
         writeConsoleLine("info", message);
