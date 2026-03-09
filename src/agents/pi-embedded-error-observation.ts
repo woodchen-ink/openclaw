@@ -13,6 +13,14 @@ const OBSERVATION_EXTRA_REDACT_PATTERNS = [
   String.raw`(?:\bCookie\b\s*[:=]\s*[^;=\s]+=|;\s*[^;=\s]+=)([^;\s\r\n]+)`,
 ];
 
+function resolveConfiguredRedactPatterns(): string[] {
+  const configured = readLoggingConfig()?.redactPatterns;
+  if (!Array.isArray(configured)) {
+    return [];
+  }
+  return configured.filter((pattern): pattern is string => typeof pattern === "string");
+}
+
 function truncateForObservation(text: string | undefined, maxChars: number): string | undefined {
   const trimmed = text?.trim();
   if (!trimmed) {
@@ -37,7 +45,7 @@ function redactObservationText(text: string | undefined): string | undefined {
   }
   // Observation logs must stay redacted even when operators disable general-purpose
   // log redaction, otherwise raw provider payloads leak back into always-on logs.
-  const configuredPatterns = readLoggingConfig()?.redactPatterns ?? [];
+  const configuredPatterns = resolveConfiguredRedactPatterns();
   return redactSensitiveText(text, {
     mode: "tools",
     patterns: [

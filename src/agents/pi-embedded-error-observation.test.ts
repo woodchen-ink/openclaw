@@ -147,4 +147,19 @@ describe("buildApiErrorObservationFields", () => {
       requestIdHash: undefined,
     });
   });
+
+  it("ignores non-string configured redact patterns", () => {
+    vi.spyOn(loggingConfigModule, "readLoggingConfig").mockReturnValue({
+      redactPatterns: [
+        123 as never,
+        { bad: true } as never,
+        String.raw`\bcustom-secret-[A-Za-z0-9]+\b`,
+      ],
+    });
+
+    const observed = buildApiErrorObservationFields("custom-secret-abc123");
+
+    expect(observed.rawErrorPreview).not.toContain("custom-secret-abc123");
+    expect(observed.rawErrorPreview).toContain("custom");
+  });
 });
