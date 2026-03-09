@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as loggingConfigModule from "../logging/config.js";
 import {
   buildApiErrorObservationFields,
   buildTextObservationFields,
 } from "./pi-embedded-error-observation.js";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("buildApiErrorObservationFields", () => {
   it("redacts request ids and exposes stable hashes instead of raw payloads", () => {
@@ -109,5 +114,37 @@ describe("buildApiErrorObservationFields", () => {
     expect(buildApiErrorObservationFields(undefined)).toEqual({});
     expect(buildApiErrorObservationFields("")).toEqual({});
     expect(buildApiErrorObservationFields("   ")).toEqual({});
+  });
+
+  it("re-reads configured redact patterns on each call", () => {
+    const readLoggingConfig = vi.spyOn(loggingConfigModule, "readLoggingConfig");
+    readLoggingConfig.mockReturnValueOnce(undefined);
+    readLoggingConfig.mockReturnValueOnce({
+      redactPatterns: [String.raw`\bcustom-secret-[A-Za-z0-9]+\b`],
+    });
+
+    const first = buildApiErrorObservationFields("custom-secret-abc123");
+    const second = buildApiErrorObservationFields("custom-secret-abc123");
+
+    expect(first.rawErrorPreview).toContain("custom-secret-abc123");
+    expect(second.rawErrorPreview).not.toContain("custom-secret-abc123");
+    expect(second.rawErrorPreview).toContain("custom");
+  });
+
+  it("fails closed when observation sanitization throws", () => {
+    vi.spyOn(loggingConfigModule, "readLoggingConfig").mockImplementation(() => {
+      throw new Error("boom");
+    });
+
+    expect(buildApiErrorObservationFields("request_id=req_123")).toEqual({});
+    expect(buildTextObservationFields("request_id=req_123")).toEqual({
+      textPreview: undefined,
+      textHash: undefined,
+      textFingerprint: undefined,
+      httpCode: undefined,
+      providerErrorType: undefined,
+      providerErrorMessagePreview: undefined,
+      requestIdHash: undefined,
+    });
   });
 });

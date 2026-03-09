@@ -12,21 +12,6 @@ const OBSERVATION_EXTRA_REDACT_PATTERNS = [
   String.raw`"(?:api[-_]?key|api_key)"\s*:\s*"([^"]+)"`,
   String.raw`(?:\bCookie\b\s*[:=]\s*[^;=\s]+=|;\s*[^;=\s]+=)([^;\s\r\n]+)`,
 ];
-let observationRedactPatterns: string[] | undefined;
-
-function getObservationRedactPatterns(): string[] {
-  if (!observationRedactPatterns) {
-    // Observation logs must stay redacted even when operators disable general-purpose
-    // log redaction, otherwise raw provider payloads leak back into always-on logs.
-    const configuredPatterns = readLoggingConfig()?.redactPatterns ?? [];
-    observationRedactPatterns = [
-      ...getDefaultRedactPatterns(),
-      ...configuredPatterns,
-      ...OBSERVATION_EXTRA_REDACT_PATTERNS,
-    ];
-  }
-  return observationRedactPatterns;
-}
 
 function truncateForObservation(text: string | undefined, maxChars: number): string | undefined {
   const trimmed = text?.trim();
@@ -50,9 +35,16 @@ function redactObservationText(text: string | undefined): string | undefined {
   if (!text) {
     return text;
   }
+  // Observation logs must stay redacted even when operators disable general-purpose
+  // log redaction, otherwise raw provider payloads leak back into always-on logs.
+  const configuredPatterns = readLoggingConfig()?.redactPatterns ?? [];
   return redactSensitiveText(text, {
     mode: "tools",
-    patterns: getObservationRedactPatterns(),
+    patterns: [
+      ...getDefaultRedactPatterns(),
+      ...configuredPatterns,
+      ...OBSERVATION_EXTRA_REDACT_PATTERNS,
+    ],
   });
 }
 
@@ -101,35 +93,40 @@ export function buildApiErrorObservationFields(rawError?: string): {
   if (!trimmed) {
     return {};
   }
+  try {
+    const parsed = parseApiErrorInfo(trimmed);
+    const requestId = parsed?.requestId ?? extractRequestId(trimmed);
+    const requestIdHash = requestId ? redactIdentifier(requestId, { len: 12 }) : undefined;
+    const rawFingerprint = buildObservationFingerprint({
+      raw: trimmed,
+      requestId,
+      httpCode: parsed?.httpCode,
+      type: parsed?.type,
+      message: parsed?.message,
+    });
+    const redactedRawPreview = replaceRequestIdPreview(redactObservationText(trimmed), requestId);
+    const redactedProviderMessage = replaceRequestIdPreview(
+      redactObservationText(parsed?.message),
+      requestId,
+    );
 
-  const parsed = parseApiErrorInfo(trimmed);
-  const requestId = parsed?.requestId ?? extractRequestId(trimmed);
-  const requestIdHash = requestId ? redactIdentifier(requestId, { len: 12 }) : undefined;
-  const rawFingerprint = buildObservationFingerprint({
-    raw: trimmed,
-    requestId,
-    httpCode: parsed?.httpCode,
-    type: parsed?.type,
-    message: parsed?.message,
-  });
-  const redactedRawPreview = replaceRequestIdPreview(redactObservationText(trimmed), requestId);
-  const redactedProviderMessage = replaceRequestIdPreview(
-    redactObservationText(parsed?.message),
-    requestId,
-  );
-
-  return {
-    rawErrorPreview: truncateForObservation(redactedRawPreview, RAW_ERROR_PREVIEW_MAX_CHARS),
-    rawErrorHash: redactIdentifier(trimmed, { len: 12 }),
-    rawErrorFingerprint: rawFingerprint ? redactIdentifier(rawFingerprint, { len: 12 }) : undefined,
-    httpCode: parsed?.httpCode,
-    providerErrorType: parsed?.type,
-    providerErrorMessagePreview: truncateForObservation(
-      redactedProviderMessage,
-      PROVIDER_ERROR_PREVIEW_MAX_CHARS,
-    ),
-    requestIdHash,
-  };
+    return {
+      rawErrorPreview: truncateForObservation(redactedRawPreview, RAW_ERROR_PREVIEW_MAX_CHARS),
+      rawErrorHash: redactIdentifier(trimmed, { len: 12 }),
+      rawErrorFingerprint: rawFingerprint
+        ? redactIdentifier(rawFingerprint, { len: 12 })
+        : undefined,
+      httpCode: parsed?.httpCode,
+      providerErrorType: parsed?.type,
+      providerErrorMessagePreview: truncateForObservation(
+        redactedProviderMessage,
+        PROVIDER_ERROR_PREVIEW_MAX_CHARS,
+      ),
+      requestIdHash,
+    };
+  } catch {
+    return {};
+  }
 }
 
 export function buildTextObservationFields(text?: string): {
