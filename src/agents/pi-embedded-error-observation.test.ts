@@ -46,4 +46,29 @@ describe("buildApiErrorObservationFields", () => {
     });
     expect(observed.textPreview).not.toContain("req_prev");
   });
+
+  it("redacts request ids in formatted plain-text errors", () => {
+    const observed = buildApiErrorObservationFields(
+      "LLM error overloaded_error: Overloaded (request_id: req_plaintext_123)",
+    );
+
+    expect(observed).toMatchObject({
+      rawErrorPreview: expect.stringContaining("request_id: sha256:"),
+      rawErrorFingerprint: expect.stringMatching(/^sha256:/),
+      requestIdHash: expect.stringMatching(/^sha256:/),
+    });
+    expect(observed.rawErrorPreview).not.toContain("req_plaintext_123");
+  });
+
+  it("keeps fingerprints stable across request ids for equivalent errors", () => {
+    const first = buildApiErrorObservationFields(
+      '{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"},"request_id":"req_001"}',
+    );
+    const second = buildApiErrorObservationFields(
+      '{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"},"request_id":"req_002"}',
+    );
+
+    expect(first.rawErrorFingerprint).toBe(second.rawErrorFingerprint);
+    expect(first.rawErrorHash).not.toBe(second.rawErrorHash);
+  });
 });

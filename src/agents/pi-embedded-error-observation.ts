@@ -1,9 +1,12 @@
+import { readLoggingConfig } from "../logging/config.js";
 import { redactIdentifier } from "../logging/redact-identifier.js";
 import { redactSensitiveText } from "../logging/redact.js";
 import { getApiErrorPayloadFingerprint, parseApiErrorInfo } from "./pi-embedded-helpers.js";
+import { stableStringify } from "./stable-stringify.js";
 
 const RAW_ERROR_PREVIEW_MAX_CHARS = 400;
 const PROVIDER_ERROR_PREVIEW_MAX_CHARS = 200;
+const REQUEST_ID_RE = /\brequest[_ ]?id\b\s*[:=]\s*["'()]*([A-Za-z0-9._:-]+)/i;
 
 function truncateForObservation(text: string | undefined, maxChars: number): string | undefined {
   const trimmed = text?.trim();
@@ -29,7 +32,42 @@ function redactObservationText(text: string | undefined): string | undefined {
   }
   // Observation logs must stay redacted even when operators disable general-purpose
   // log redaction, otherwise raw provider payloads leak back into always-on logs.
-  return redactSensitiveText(text, { mode: "tools" });
+  return redactSensitiveText(text, {
+    mode: "tools",
+    patterns: readLoggingConfig()?.redactPatterns,
+  });
+}
+
+function extractRequestId(text: string | undefined): string | undefined {
+  if (!text) {
+    return undefined;
+  }
+  const match = text.match(REQUEST_ID_RE);
+  return match?.[1]?.trim() || undefined;
+}
+
+function buildObservationFingerprint(params: {
+  raw: string;
+  requestId?: string;
+  httpCode?: string;
+  type?: string;
+  message?: string;
+}): string | null {
+  const structured =
+    params.httpCode || params.type || params.message
+      ? stableStringify({
+          httpCode: params.httpCode,
+          type: params.type,
+          message: params.message,
+        })
+      : null;
+  if (structured) {
+    return structured;
+  }
+  if (params.requestId) {
+    return params.raw.split(params.requestId).join("<request_id>");
+  }
+  return getApiErrorPayloadFingerprint(params.raw);
 }
 
 export function buildApiErrorObservationFields(rawError?: string): {
@@ -47,17 +85,19 @@ export function buildApiErrorObservationFields(rawError?: string): {
   }
 
   const parsed = parseApiErrorInfo(trimmed);
-  const requestIdHash = parsed?.requestId
-    ? redactIdentifier(parsed.requestId, { len: 12 })
-    : undefined;
-  const rawFingerprint = getApiErrorPayloadFingerprint(trimmed);
-  const redactedRawPreview = replaceRequestIdPreview(
-    redactObservationText(trimmed),
-    parsed?.requestId,
-  );
+  const requestId = parsed?.requestId ?? extractRequestId(trimmed);
+  const requestIdHash = requestId ? redactIdentifier(requestId, { len: 12 }) : undefined;
+  const rawFingerprint = buildObservationFingerprint({
+    raw: trimmed,
+    requestId,
+    httpCode: parsed?.httpCode,
+    type: parsed?.type,
+    message: parsed?.message,
+  });
+  const redactedRawPreview = replaceRequestIdPreview(redactObservationText(trimmed), requestId);
   const redactedProviderMessage = replaceRequestIdPreview(
     redactObservationText(parsed?.message),
-    parsed?.requestId,
+    requestId,
   );
 
   return {
