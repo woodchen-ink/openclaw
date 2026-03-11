@@ -60,10 +60,7 @@ describe("resolveAgentRoute", () => {
     const cfg: OpenClawConfig = {
       session: { dmScope: "per-channel-peer" },
       agents: {
-        list: [
-          { id: "main", dmScope: "main" },
-          { id: "dm" },
-        ],
+        list: [{ id: "main", dmScope: "main" }, { id: "dm" }],
       },
       bindings: [
         {
