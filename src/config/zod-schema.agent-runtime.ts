@@ -744,6 +744,14 @@ export const AgentEntrySchema = z
       })
       .strict()
       .optional(),
+    dmScope: z
+      .union([
+        z.literal("main"),
+        z.literal("per-peer"),
+        z.literal("per-channel-peer"),
+        z.literal("per-account-channel-peer"),
+      ])
+      .optional(),
     sandbox: AgentSandboxSchema,
     tools: AgentToolsSchema,
     runtime: AgentRuntimeSchema,
